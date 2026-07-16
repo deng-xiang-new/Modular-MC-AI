@@ -1,0 +1,35 @@
+{
+    "websocket": {
+        "port": 8000,
+        "host": "0.0.0.0"
+    },
+    "ai": {
+        "name": "零",
+        "api_url": "https://api.deepseek.com/v1/chat/completions",
+        "api_key": "sk-your-api-key-here",
+        "model": "deepseek-chat",
+        "temperature": 0.4,
+        "max_tokens": 300
+    },
+    "security": {
+        "scan_threshold": 5,
+        "scan_window_seconds": 60,
+        "ban_duration_hours": 24
+    },
+    "memory": {
+        "max_history_per_player": 50,
+        "server_memory_path": "data/memory/server.json",
+        "players_dir": "data/memory/players",
+        "summary_path": "data/memory/summary.json"
+    },
+    "logging": {
+        "server_log": "logs/server.log",
+        "error_log": "logs/server_error.log"
+    },
+    "web_panel": {
+        "host": "0.0.0.0",
+        "port": 8080,
+        "username": "admin",
+        "password": "minecraft-admin"
+    }
+}
