@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Modular-MC-AI 独立图形化运维面板</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        [v-cloak] { display: none; }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f6f8; color: #333; }
+        .login-box { max-width: 320px; margin: 15vh auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }
+        .login-box input { width: 100%; box-sizing: border-box; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }
+        .login-box button { width: 100%; padding: 10px; background: #3eaf7c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        .error { color: #e74c3c; font-size: 14px; }
+
+        .dashboard { display: flex; height: 100vh; }
+        .sidebar { width: 220px; background: #2c3e50; color: white; display: flex; flex-direction: column; }
+        .sidebar h2 { padding: 20px; margin: 0; background: #1a252f; font-size: 16px; text-align: center;}
+        
+        /* 主服务状态卡片 */
+        .service-card { background: #1a252f; padding: 15px; margin: 10px; border-radius: 6px; font-size: 13px; border-left: 4px solid #95a5a6; }
+        .service-card.running { border-left-color: #2ecc71; }
+        .service-card.stopped { border-left-color: #e74c3c; }
+        .service-card .status-indicator { font-weight: bold; margin-bottom: 5px; }
+        .service-card .status-indicator.running { color: #2ecc71; }
+        .service-card .status-indicator.stopped { color: #e74c3c; }
+        .service-card .btn-group { display: flex; gap: 5px; margin-top: 10px; }
+        .service-card .btn-group button { flex: 1; padding: 4px; font-size: 11px; border: none; border-radius: 3px; cursor: pointer; color: white; }
+        .service-card .btn-group button.start { background: #2ecc71; }
+        .service-card .btn-group button.stop { background: #e74c3c; }
+        .service-card .btn-group button.restart { background: #f39c12; }
+
+        .sidebar ul { list-style: none; padding: 0; margin: 0; flex: 1; }
+        .sidebar li { padding: 15px 20px; cursor: pointer; border-bottom: 1px solid #34495e; font-size: 14px; }
+        .sidebar li:hover, .sidebar li.active { background: #3eaf7c; }
+        .logout-btn { padding: 15px; background: #7f8c8d; color: white; text-align: center; border: none; cursor: pointer;}
+
+        .content { flex: 1; padding: 20px; overflow-y: auto; }
+        .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .upload-btn-wrapper { position: relative; overflow: hidden; display: inline-block; }
+        .upload-btn-wrapper input[type=file] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; height: 100%; }
+
+        .mod-table { width: 100%; background: white; border-collapse: collapse; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .mod-table th, .mod-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        .mod-table th { background: #f8f9fa; font-weight: 600; }
+        .disabled-row { background: #fdfdfd; color: #999; }
+        .disabled-row td { color: #aaa; }
+
+        .badge { padding: 3px 8px; border-radius: 12px; font-size: 12px; color: white; }
+        .badge.green { background: #2ecc71; }
+        .badge.red { background: #e74c3c; }
+        .badge.gray { background: #95a5a6; }
+
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; color: white; background: #3498db; }
+        .btn.primary { background: #3eaf7c; }
+        .btn-small { padding: 5px 10px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; color: white; margin-right: 5px; }
+        .btn-small.red { background: #e74c3c; }
+        .btn-small.green { background: #2ecc71; }
+        .btn-small.gray { background: #7f8c8d; }
+
+        .log-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: calc(100vh - 100px); display: flex; flex-direction: column;}
+        .log-viewer { flex: 1; background: #1e1e1e; color: #d4d4d4; padding: 15px; overflow-y: auto; border-radius: 4px; font-family: 'Courier New', Courier, monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; margin: 0; }
+
+        .modal { position: fixed; z-index: 10; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; }
+        .modal-content { background-color: #fefefe; padding: 20px; border-radius: 8px; width: 80%; max-height: 80vh; overflow-y: auto; position: relative; }
+        .close { color: #aaa; position: absolute; right: 20px; top: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div class="login-box" v-if="!token">
+            <h2>AI 独立运维控制台</h2>
+            <input v-model="username" type="text" placeholder="账号">
+            <input v-model="password" type="password" placeholder="密码" @keyup.enter="login">
+            <button @click="login">登录</button>
+            <p class="error" v-if="error">{{ error }}</p>
+        </div>
+
+        <div class="dashboard" v-else>
+            <nav class="sidebar">
+                <h2>运维管理器</h2>
+                
+                <div :class="['service-card', mainService.status]">
+                    <div class="status-indicator" :class="mainService.status">
+                        ● 主服务：{{ mainService.status === 'running' ? '运行中' : '已停止' }}
+                    </div>
+                    <div v-if="mainService.pid">PID: {{ mainService.pid }}</div>
+                    <div class="btn-group">
+                        <button class="start" v-if="mainService.status === 'stopped'" @click="controlService('start')">启动</button>
+                        <button class="stop" v-if="mainService.status === 'running'" @click="controlService('stop')">停止</button>
+                        <button class="restart" @click="controlService('restart')">重启</button>
+                    </div>
+                </div>
+
+                <ul>
+                    <li :class="{active: tab==='mods'}" @click="tab='mods'; fetchMods()">模块管理</li>
+                    <li :class="{active: tab==='logs'}" @click="tab='logs'; fetchLogs('server')">运行日志</li>
+                    <li :class="{active: tab==='error_logs'}" @click="tab='error_logs'; fetchLogs('error')">异常日志</li>
+                </ul>
+                <button class="logout-btn" @click="logout">安全退出</button>
+            </nav>
+
+            <main class="content">
+                <div v-show="tab==='mods'">
+                    <div class="header-actions">
+                        <h3>物理模块列表 ({{ mods.length }})</h3>
+                        <div>
+                            <button class="btn" style="margin-right: 10px;" @click="controlService('reload')">⚡ 热重载模块</button>
+                            <div class="upload-btn-wrapper">
+                                <button class="btn primary">上传新 Mod (.py)</button>
+                                <input type="file" @change="uploadMod" accept=".py" />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <table class="mod-table">
+                        <thead>
+                            <tr>
+                                <th>模块名</th>
+                                <th>状态</th>
+                                <th>元信息 (简介)</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="mod in mods" :key="mod.name" :class="{'disabled-row': !mod.enabled}">
+                                <td><strong>{{ mod.name }}</strong></td>
+                                <td>
+                                    <span v-if="mod.enabled" class="badge green">✓ 启用中</span>
+                                    <span v-else class="badge gray">🚫 已禁用</span>
+                                </td>
+                                <td>{{ mod.description }}</td>
+                                <td class="actions">
+                                    <button @click="toggleMod(mod)" :class="['btn-small', mod.enabled ? 'red' : 'green']">
+                                        {{ mod.enabled ? '禁用' : '启用' }}
+                                    </button>
+                                    <button class="btn-small gray" @click="previewMod(mod.name)">源码</button>
+                                    <button class="btn-small red" @click="deleteMod(mod.name)">物理删除</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div v-show="tab==='logs' || tab==='error_logs'" class="log-container">
+                    <div class="header-actions">
+                        <h3>{{ tab === 'logs' ? '运行日志 (server.log)' : '异常日志 (server_error.log)' }}</h3>
+                        <button class="btn" @click="fetchLogs(tab === 'logs' ? 'server' : 'error')">手动刷新</button>
+                    </div>
+                    <pre class="log-viewer">{{ logContent }}</pre>
+                </div>
+            </main>
+
+            <div class="modal" v-if="previewContent">
+                <div class="modal-content">
+                    <span class="close" @click="previewContent=''">&times;</span>
+                    <h3>模块代码预览</h3>
+                    <pre style="background: #272822; color: #f8f8f2; padding: 15px; border-radius: 4px; overflow-x: auto;"><code>{{ previewContent }}</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, onUnmounted } = Vue;
+
+        createApp({
+            setup() {
+                const token = ref(localStorage.getItem('token') || '');
+                const username = ref('');
+                const password = ref('');
+                const error = ref('');
+                const tab = ref('mods');
+                const mods = ref([]);
+                const logContent = ref('');
+                const previewContent = ref('');
+                const mainService = ref({ status: 'stopped', pid: null });
+                let statusTimer = null;
+
+                const apiRequest = async (url, options = {}) => {
+                    options.headers = options.headers || {};
+                    if(token.value && !(options.body instanceof FormData)) {
+                        options.headers['Authorization'] = `Bearer ${token.value}`;
+                        options.headers['Content-Type'] = 'application/json';
+                    } else if (token.value) {
+                        options.headers['Authorization'] = `Bearer ${token.value}`;
+                    }
+                    const res = await fetch(url, options);
+                    if(res.status === 401) logout();
+                    return res;
+                };
+
+                const login = async () => {
+                    const res = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({username: username.value, password: password.value})
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        token.value = data.token;
+                        localStorage.setItem('token', data.token);
+                        error.value = '';
+                        initDashboard();
+                    } else {
+                        error.value = data.error;
+                    }
+                };
+
+                const logout = () => {
+                    token.value = '';
+                    localStorage.removeItem('token');
+                    clearInterval(statusTimer);
+                };
+
+                const fetchServiceStatus = async () => {
+                    if (!token.value) return;
+                    try {
+                        const res = await apiRequest('/api/status');
+                        const data = await res.json();
+                        mainService.value = data.main_service;
+                    } catch (e) {
+                        mainService.value = { status: 'stopped', pid: null };
+                    }
+                };
+
+                const controlService = async (action) => {
+                    const res = await apiRequest('/api/control', {
+                        method: 'POST',
+                        body: JSON.stringify({ action })
+                    });
+                    const data = await res.json();
+                    alert(data.message || data.error);
+                    fetchServiceStatus();
+                };
+
+                const fetchMods = async () => {
+                    if(!token.value) return;
+                    const res = await apiRequest('/api/mods');
+                    const data = await res.json();
+                    mods.value = data.mods;
+                };
+
+                const uploadMod = async (e) => {
+                    const file = e.target.files[0];
+                    if(!file) return;
+                    const modName = prompt("请输入要新建/覆盖的模块英文目录名 (如: chat_handler):");
+                    if(!modName) return;
+                    
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('mod_name', modName);
+
+                    await apiRequest('/api/mods/upload', { method: 'POST', body: formData });
+                    alert("上传成功！");
+                    fetchMods();
+                    e.target.value = '';
+                };
+
+                const toggleMod = async (mod) => {
+                    await apiRequest(`/api/mods/${mod.name}/toggle`, { method: 'POST' });
+                    fetchMods();
+                };
+
+                const deleteMod = async (name) => {
+                    if(!confirm(`确定要彻底物理删除模块 ${name} 吗？`)) return;
+                    await apiRequest(`/api/mods/${name}`, { method: 'DELETE' });
+                    fetchMods();
+                };
+
+                const previewMod = async (name) => {
+                    const res = await apiRequest(`/api/mods/${name}/preview`);
+                    if (res.ok) {
+                        previewContent.value = await res.text();
+                    } else {
+                        alert("未找到该模块源码。");
+                    }
+                };
+
+                const fetchLogs = async (type) => {
+                    logContent.value = "加载中...";
+                    const res = await apiRequest(`/api/logs/${type}?lines=200`);
+                    const data = await res.json();
+                    logContent.value = data.logs;
+                };
+
+                const initDashboard = () => {
+                    fetchServiceStatus();
+                    fetchMods();
+                    statusTimer = setInterval(fetchServiceStatus, 5000); // 5秒轮询一次服务状态
+                };
+
+                onMounted(() => {
+                    if (token.value) initDashboard();
+                });
+
+                onUnmounted(() => {
+                    clearInterval(statusTimer);
+                });
+
+                return { token, username, password, error, tab, mods, logContent, previewContent, mainService, login, logout, fetchMods, uploadMod, toggleMod, deleteMod, previewMod, fetchLogs, controlService };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
