@@ -1,0 +1,11 @@
+# Minecraft 基岩版 WebSocket 协议支持
+websockets>=12.0,<17.0
+
+# AI API 调用 + HTTP 请求（同步/异步双模式，async 原生不阻塞事件循环）
+httpx>=0.27.0
+
+# 异步文件 I/O，避免记忆系统阻塞事件循环
+aiofiles>=24.1.0
+
+# Web 管理面板 (使用异步 HTTP 框架)
+aiohttp>=3.9.0
